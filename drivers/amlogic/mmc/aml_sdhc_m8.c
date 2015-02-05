@@ -214,9 +214,9 @@ static int aml_sdhc_execute_tuning_ (struct mmc_host *mmc, u32 opcode,
 
 	u8 rx_tuning_result[20] = { 0 };
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     pdata->need_retuning = false;
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
     vclk2_bak = readl(host->base + SDHC_CLK2);
 
@@ -942,11 +942,11 @@ void aml_sdhc_request_done(struct mmc_host *mmc, struct mmc_request *mrq)
     struct amlsd_host* host = pdata->host;
     unsigned long flags;
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     host->xfer_step = XFER_FINISHED;
     host->mrq = NULL;
     host->status = HOST_INVALID;
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
 #ifdef      CONFIG_MMC_AML_DEBUG
     host->req_cnt--;
@@ -1007,11 +1007,11 @@ static void aml_sdhc_print_err (struct amlsd_host *host)
         return ;
     }
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     xfer_step = host->xfer_step;
     xfer_step_prev = host->xfer_step_prev;
     status = host->status;
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
     clk_src = clk_get_sys("pll_fixed", NULL); // fclk
     clk_rate = clk_get_rate(clk_src)/3; // for SDHC_CLOCK_SRC_FCLK_DIV3
@@ -1122,9 +1122,9 @@ static void aml_sdhc_timeout(struct work_struct *work)
 	
     BUG_ON(!host->mrq || !host->mrq->cmd);
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     if(host->xfer_step == XFER_FINISHED){
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         sdhc_err("timeout after xfer finished\n");
         return;
     }
@@ -1138,7 +1138,7 @@ static void aml_sdhc_timeout(struct work_struct *work)
         if (timeout_cnt > 30)
             goto timeout_handle;
 
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
         sdhc_err("%s: cmd%d, ISR have been run, xfer_step=%d, time_start_cnt=%ldmS, timeout_cnt=%d\n",
                 mmc_hostname(host->mmc), host->mrq->cmd->opcode, host->xfer_step, time_start_cnt, timeout_cnt);
@@ -1168,11 +1168,11 @@ timeout_handle:
         sdhc_err("Command retried failed\n");
     }
         
-    //spin_unlock_irqrestore(&host->mrq_lock, flags);
+    //raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
     aml_sdhc_status(host);
 
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
     aml_sdhc_read_response(host->mmc, mrq->cmd);
     sdhc_err("time_start_cnt:%ld\n", time_start_cnt);
 
@@ -1236,16 +1236,16 @@ timeout_handle:
                     && (host->mrq->cmd->opcode != MMC_SEND_TUNING_BLOCK_HS200)){
     //if((host->mrq->cmd->opcode != SD_IO_RW_DIRECT) && (host->mrq->cmd->opcode != SD_IO_RW_EXTENDED) 
    //         && (!mmc_card_removed(pdata->mmc->card)) && (!mrq->data)){
-        //spin_lock_irqsave(&host->mrq_lock, flags);
+        //raw_spin_lock_irqsave(&host->mrq_lock, flags);
         aml_sdhc_send_stop(host);                
-        //spin_unlock_irqrestore(&host->mrq_lock, flags);
+        //raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         //schedule_delayed_work(&host->timeout, 50);
     }
     else{
-        spin_lock_irqsave(&host->mrq_lock, flags);        
+        raw_spin_lock_irqsave(&host->mrq_lock, flags);        
         if (host->cmd_is_stop)
             host->cmd_is_stop = 0;
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
         aml_sdhc_request_done(host->mmc, mrq);
     }          
@@ -1259,9 +1259,9 @@ static void aml_sdhc_tuning_timer(struct work_struct *work)
     struct amlsd_host *host = (void*)pdata->host;
     unsigned long flags;
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     pdata->need_retuning = true;
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 }
 
 /*cmd request interface*/
@@ -1285,10 +1285,10 @@ void aml_sdhc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
     //only for SDCARD
     if(!pdata->is_in || (!host->init_flag && aml_card_type_sd(pdata))){
-        spin_lock_irqsave(&host->mrq_lock, flags);
+        raw_spin_lock_irqsave(&host->mrq_lock, flags);
         mrq->cmd->error = -ENOMEDIUM;
         mrq->cmd->retries = 0;
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         mmc_request_done(mmc, mrq);
         return;
     }
@@ -1361,7 +1361,7 @@ void aml_sdhc_request(struct mmc_host *mmc, struct mmc_request *mrq)
              
     schedule_delayed_work(&host->timeout, timeout);
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     if(host->xfer_step != XFER_FINISHED && host->xfer_step != XFER_INIT)
         sdhc_err("host->xfer_step %d\n", host->xfer_step);
 
@@ -1376,7 +1376,7 @@ void aml_sdhc_request(struct mmc_host *mmc, struct mmc_request *mrq)
     /*setup reg for all cmd*/
     aml_sdhc_start_cmd(pdata, mrq);
     host->xfer_step = XFER_AFTER_START;
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 }
     
 static int aml_sdhc_status (struct amlsd_host* host)
@@ -1393,7 +1393,7 @@ static int aml_sdhc_status (struct amlsd_host* host)
         return ret;
     }
 
-    //spin_lock_irqsave(&host->mrq_lock, flags);
+    //raw_spin_lock_irqsave(&host->mrq_lock, flags);
     if (victl & vista) {
         if(ista->rxfifo_full){
             host->status = HOST_RX_FIFO_FULL;
@@ -1441,7 +1441,7 @@ _status_exit:
     //for debug
     //sdhc_debug_status(host);
 
-    //spin_unlock_irqrestore(&host->mrq_lock, flags);
+    //raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
     return ret;
 }
 
@@ -1463,7 +1463,7 @@ static irqreturn_t aml_sdhc_irq(int irq, void *dev_id)
     //    return IRQ_HANDLED;
     //}
         
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     victl = readl(host->base + SDHC_ICTL);
     vista = readl(host->base + SDHC_ISTA);
        
@@ -1474,12 +1474,12 @@ static irqreturn_t aml_sdhc_irq(int irq, void *dev_id)
         sdhc_err("NULL mrq in aml_sdhc_irq step %d\n", host->xfer_step);
         if(host->xfer_step == XFER_FINISHED ||
             host->xfer_step == XFER_TIMER_TIMEOUT){
-            spin_unlock_irqrestore(&host->mrq_lock, flags);
+            raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
             return IRQ_HANDLED;
         }
         WARN_ON(!mrq);
         aml_sdhc_print_reg(host);
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         return IRQ_HANDLED;
     }
 
@@ -1494,11 +1494,11 @@ static irqreturn_t aml_sdhc_irq(int irq, void *dev_id)
         host->xfer_step = XFER_IRQ_OCCUR;
 
     if (victl & vista) {
-        //spin_unlock_irqrestore(&host->mrq_lock, flags);
+        //raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         aml_sdhc_status(host);
         if (exception_flag)
             sdhc_err("victl=%#x, vista=%#x, status=%#x\n", victl, vista, host->status);
-        //spin_lock_irqsave(&host->mrq_lock, flags);
+        //raw_spin_lock_irqsave(&host->mrq_lock, flags);
         switch(host->status)
         {
             case HOST_RX_FIFO_FULL:
@@ -1528,7 +1528,7 @@ static irqreturn_t aml_sdhc_irq(int irq, void *dev_id)
                 break;
         }
 
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         return IRQ_WAKE_THREAD;
 
     }
@@ -1539,12 +1539,12 @@ static irqreturn_t aml_sdhc_irq(int irq, void *dev_id)
             pdata->pinname, victl, vista, mrq->cmd->opcode,
             mrq->data?mrq->data->blksz*mrq->data->blocks:0);
     // }
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
     return IRQ_HANDLED;
 
 // req_done:
     // cancel_delayed_work(&host->timeout);
-    // spin_unlock_irqrestore(&host->mrq_lock, flags);
+    // raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
     // aml_sdhc_request_done(mmc, mrq);
     // return IRQ_HANDLED;
 }
@@ -1585,12 +1585,12 @@ void aml_sdhc_send_stop(struct amlsd_host* host)
    
     /*Already in mrq_lock*/
     schedule_delayed_work(&host->timeout, 50);
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     sdhc_err_bak = host->mrq->cmd->error;
     host->mrq->cmd->error = 0;
     host->cmd_is_stop = 1;
     aml_sdhc_start_cmd(pdata, &aml_sdhc_stop);
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
     
 }
 
@@ -1615,14 +1615,14 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
     struct sdhc_pdma* pdma = (struct sdhc_pdma*)&vpdma;
 
 
-    spin_lock_irqsave(&host->mrq_lock, flags);
+    raw_spin_lock_irqsave(&host->mrq_lock, flags);
     mrq = host->mrq;
     xfer_step = host->xfer_step;
     status = host->status;
     
     if ((xfer_step == XFER_FINISHED) || (xfer_step == XFER_TIMER_TIMEOUT)) {
         sdhc_err("Warning: xfer_step=%d, host->status=%d\n", xfer_step, status);
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         return IRQ_HANDLED;
     }
 
@@ -1632,7 +1632,7 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
         sdhc_err("!mrq xfer_step %d\n", xfer_step);
         if(xfer_step == XFER_FINISHED ||
             xfer_step == XFER_TIMER_TIMEOUT){
-            spin_unlock_irqrestore(&host->mrq_lock, flags);
+            raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
             return IRQ_HANDLED;
         }
         //BUG();
@@ -1644,7 +1644,7 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
             sdhc_err("cmd12 error %d\n", mrq->cmd->error);
         host->cmd_is_stop = 0;
         mrq->cmd->error = sdhc_err_bak;
-        spin_unlock_irqrestore(&host->mrq_lock, flags);
+        raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
         if(delayed_work_pending(&host->timeout))
             cancel_delayed_work(&host->timeout);
         msleep(delay);
@@ -1652,7 +1652,7 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
         aml_sdhc_request_done(host->mmc, host->mrq);
         return IRQ_HANDLED;
     }
-    spin_unlock_irqrestore(&host->mrq_lock, flags);
+    raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
 
     BUG_ON(!host->mrq->cmd);
 
@@ -1728,11 +1728,11 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
                 // sdhc_err("cmd%d, txfifo_cnt=%d\n", mrq->cmd->opcode, stat->txfifo_cnt);
             // }
 
-            spin_lock_irqsave(&host->mrq_lock, flags);
+            raw_spin_lock_irqsave(&host->mrq_lock, flags);
             mrq->cmd->error = 0;
             mrq->data->bytes_xfered = xfer_bytes;
             host->xfer_step = XFER_TASKLET_DATA;
-            spin_unlock_irqrestore(&host->mrq_lock, flags);
+            raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
             //do not check device ready status here
             //aml_sdhc_wait_ready(host, STAT_POLL_TIMEOUT);
             if(aml_sdhc_wait_ready(host, (STAT_POLL_TIMEOUT<<2))){ /*Wait command busy*/
@@ -1747,10 +1747,10 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
             if(!host->mrq->data){
                 if(delayed_work_pending(&host->timeout))
                     cancel_delayed_work(&host->timeout);
-                spin_lock_irqsave(&host->mrq_lock, flags);
+                raw_spin_lock_irqsave(&host->mrq_lock, flags);
                 host->mrq->cmd->error = 0;
                 host->xfer_step = XFER_TASKLET_CMD;
-                spin_unlock_irqrestore(&host->mrq_lock, flags);
+                raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
                 //aml_sdhc_wait_ready(host, STAT_POLL_TIMEOUT);
 	            if(aml_sdhc_wait_ready(host, STAT_POLL_TIMEOUT)){ /*Wait command busy*/
 	            	sdhc_err("aml_sdhc_wait_ready error cmd thread\n");
@@ -1775,7 +1775,7 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
             aml_sdhc_print_err(host);
             aml_sdhc_host_reset(host);
             writel(SDHC_ISTA_W1C_ALL, host->base+SDHC_ISTA);
-            spin_lock_irqsave(&host->mrq_lock, flags);
+            raw_spin_lock_irqsave(&host->mrq_lock, flags);
             if((sdhc_error_flag == 0) && (host->mrq->cmd->opcode != MMC_SEND_TUNING_BLOCK) 
                     && (host->mrq->cmd->opcode != MMC_SEND_TUNING_BLOCK_HS200) 
                     && host->mrq->data){  //set cmd retry cnt when first error.
@@ -1798,7 +1798,7 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
                 sdhc_error_flag |= (1<<30);
                 sdhc_err("Command retried failed line:%d, status:%d\n", __LINE__, status);
             }    
-            spin_unlock_irqrestore(&host->mrq_lock, flags);
+            raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
                           
             //do not send stop for sdio wifi case 
             if(host->mrq->stop && aml_card_type_mmc(pdata) && pdata->is_in
@@ -1828,24 +1828,24 @@ irqreturn_t aml_sdhc_data_thread(int irq, void *data)
                     if(cnt >= (ARRAY_SIZE(clock) - 1))
                         break;
                 }
-                spin_lock_irqsave(&host->mrq_lock, flags);
+                raw_spin_lock_irqsave(&host->mrq_lock, flags);
 
                 host->mmc->ios.clock = clock[cnt]; 
                 pdata->need_retuning = true; // retuing will be done in the next request
                 mrq->cmd->retries = (ARRAY_SIZE(clock) - 1) - cnt;
-                spin_unlock_irqrestore(&host->mrq_lock, flags);
+                raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
                 aml_sdhc_set_clk_rate(host->mmc,host->mmc->ios.clock);
 
 
             }
             else if(aml_card_type_mmc(pdata) && (host->mrq->cmd->opcode != MMC_SEND_TUNING_BLOCK) && (host->mrq->cmd->opcode != MMC_SEND_TUNING_BLOCK_HS200)){
-                spin_lock_irqsave(&host->mrq_lock, flags);
+                raw_spin_lock_irqsave(&host->mrq_lock, flags);
 
                 if(sdhc_error_flag == 0){  //set cmd retry cnt when first error.
                     sdhc_error_flag |= (1<<1);
                     mrq->cmd->retries = AML_ERROR_RETRY_COUNTER; 
                 }                 
-                spin_unlock_irqrestore(&host->mrq_lock, flags);                                          
+                raw_spin_unlock_irqrestore(&host->mrq_lock, flags);                                          
             } 
             if(sdhc_error_flag && (mrq->cmd->retries == 0)){
                 sdhc_error_flag |= (1<<30);
@@ -1979,7 +1979,7 @@ static void aml_sdhc_set_clk_rate(struct mmc_host *mmc, unsigned int clk_ios)
         clk_rate = 24000000;
     }
 	
-		spin_lock_irqsave(&host->mrq_lock, flags);
+		raw_spin_lock_irqsave(&host->mrq_lock, flags);
 		
     if(clk_ios > pdata->f_max)
         clk_ios = pdata->f_max;
@@ -2026,7 +2026,7 @@ static void aml_sdhc_set_clk_rate(struct mmc_host *mmc, unsigned int clk_ios)
     /*Wait for a while after clock setting*/
     // udelay(100);
 		
-		spin_unlock_irqrestore(&host->mrq_lock, flags);
+		raw_spin_unlock_irqrestore(&host->mrq_lock, flags);
     sdhc_dbg(AMLSD_DBG_IOS, "Clk IOS %d, Clk Src %d, Host Max Clk %d, vclkc=%#x, clk2=%#x, actual_clock=%d, rx_clk_phase=%d, sd_clk_phase=%d\n",
         clk_ios, clk_rate, pdata->f_max, readl(host->base+SDHC_CLKC), readl(host->base+SDHC_CLK2), pdata->mmc->actual_clock, clk2->rx_clk_phase, clk2->sd_clk_phase);
 
@@ -2294,7 +2294,7 @@ static struct amlsd_host* aml_sdhc_init_host(void)
     // setup_timer(&host->timeout_tlist, aml_sdhc_timeout, (ulong)host);
     INIT_DELAYED_WORK(&host->timeout, aml_sdhc_timeout);
 
-    spin_lock_init(&host->mrq_lock);
+    raw_spin_lock_init(&host->mrq_lock);
     host->xfer_step = XFER_INIT;
 
     INIT_LIST_HEAD(&host->sibling);
