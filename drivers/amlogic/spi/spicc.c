@@ -243,12 +243,15 @@ static int spicc_setup(struct spi_device *spi)
         spicc->regs->conreg.enable = 1; // enable spicc
 
         spicc_clk_gate_off();
+        
+        /* // Produces too much noise in a kernel log
         dev_info(&spi->dev, "%s : spi->bits_per_word = %d, spi->max_spped_hz = %d, spi->chip_select = %d, spi->mode = 0x%02X\n"
                 , __func__
                 , spi->bits_per_word
                 , spi->max_speed_hz
                 , spi->chip_select
                 , spi->mode);
+                */
     }
 
     return 0;
