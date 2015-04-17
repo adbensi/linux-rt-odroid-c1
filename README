@@ -1,3 +1,50 @@
+
+Get the Kernel RT
+git clone https://github.com/adbensi/linux-rt-odroid-c1
+
+Copy the config
+cd linux-rt-odroid-c1
+cp arch/arm/configs/odroidc_rt_defconfig .config
+
+Build Modules
+make -j4 modules
+
+Build Kernel
+make uImage
+
+Install Modules
+kernelversion=`cat ./include/config/kernel.release`
+rm -rf /lib/modules/$kernelversion
+sync
+make modules_install
+
+Backup your kernel and create uInitrd files
+kernelversion=`uname -r`
+mv /boot/uInitrd /boot/uInitrd-$kernelversion
+mv /boot/uImage /boot/uImage-$kernelversion
+
+kernelversion=`cat ./include/config/kernel.release`
+cp .config /boot/config-$kernelversion
+mkinitramfs -c gzip -o ./initramfs-$kernelversion $kernelversion
+sync
+
+Create uInitrd
+mkimage -A arm -O linux -T ramdisk -C none -a 0 -e 0 -n initramfs -d ./initramfs-$kernelversion ./uInitrd
+
+Build meson8b_odroidc
+make dtbs
+
+Build firmeware
+make firmeware
+
+And copy the compiled elements to the boot folder
+mv /media/boot /media/boot.old
+ln -s /boot /media/boot2
+cp ./arch/arm/boot/uImage                  /boot
+cp ./arch/arm/boot/dts/meson8b_odroidc.dtb /boot
+cp ./uInitrd /boot
+copy ./firmeware to /lib/firmeware
+
         Linux kernel release 3.x <http://kernel.org/>
 
 These are the release notes for Linux version 3.  Read them carefully,
